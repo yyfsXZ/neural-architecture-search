@@ -1,5 +1,5 @@
 from keras.models import Model
-from keras.layers import Input, Dense, Conv2D, GlobalAveragePooling2D
+from keras.layers import Input, Dense, Conv2D, GlobalAveragePooling2D, embeddings.Embedding
 
 # generic model design
 def model_fn(actions):
@@ -16,3 +16,7 @@ def model_fn(actions):
 
     model = Model(ip, x)
     return model
+
+def model_fn_nlp(actions):
+    input = Input(shape=())
+

@@ -454,14 +454,16 @@ class Controller:
             the training loss
         '''
         states = self.state_buffer[-1]
-        label_list = []
+        #label_list = []
 
         # parse the state space to get real value of the states,
         # then one hot encode them for comparison with the predictions
+        '''
         state_list = self.state_space.parse_state_space_list(states)
         for id, state_value in enumerate(state_list):
             state_one_hot = self.state_space.embedding_encode(id, state_value)
             label_list.append(state_one_hot)
+        '''
 
         # the initial input to the controller RNN
         state_input_size = self.state_space[0]['size']
@@ -479,13 +481,14 @@ class Controller:
 
         # prepare the feed dict with the values of all the policy labels for each
         # of the Controller outputs
-        for i, label in enumerate(label_list):
+        #for i, label in enumerate(label_list):
+        for i, label in enumerate(states):
             feed_dict[self.policy_labels[i]] = label
 
         with self.policy_session.as_default():
             K.set_session(self.policy_session)
 
-            print("Training RNN (States ip) : ", state_list)
+            # print("Training RNN (States ip) : ", state_list)
             print("Training RNN (Reward ip) : ", reward.flatten())
             _, loss, summary, global_step = self.policy_session.run([self.train_op, self.total_loss, self.summaries_op,
                                                                      self.global_step],

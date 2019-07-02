@@ -15,9 +15,9 @@ policy_sess = tf.Session()
 K.set_session(policy_sess)
 
 NUM_LAYERS = 4  # number of layers of the state space
-MAX_TRIALS = 250  # maximum number of models generated
+MAX_TRIALS = 2  # maximum number of models generated, adjust by xtpan from 250 to 2
 
-MAX_EPOCHS = 10  # maximum number of epochs to train
+MAX_EPOCHS = 2  # maximum number of epochs to train, adjust by xtpan from 10 to 2
 CHILD_BATCHSIZE = 128  # batchsize of the child models
 EXPLORATION = 0.8  # high exploration for the first 1000 steps
 REGULARIZATION = 1e-3  # regularization strength
@@ -31,8 +31,10 @@ RESTORE_CONTROLLER = True  # restore controller to continue training
 state_space = StateSpace()
 
 # add states
-state_space.add_state(name='kernel', values=[1, 3])
-state_space.add_state(name='filters', values=[16, 32, 64])
+# state_space.add_state(name='kernel', values=[1, 3])
+# state_space.add_state(name='filters', values=[16, 32, 64])
+state_space.add_state(name='forward lstm', values=[128])
+state_space.add_state(name='backward lstm', values=[128])
 
 # print the state space being searched
 state_space.print_state_space()
