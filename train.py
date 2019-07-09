@@ -1,6 +1,7 @@
 import numpy as np
 import csv
 
+import random
 import tensorflow as tf
 from keras import backend as K
 from keras.datasets import cifar10
@@ -14,7 +15,7 @@ from model import model_fn
 policy_sess = tf.Session()
 K.set_session(policy_sess)
 
-NUM_LAYERS = 4  # number of layers of the state space
+NUM_LAYERS = 2  # number of layers of the state space
 MAX_TRIALS = 2  # maximum number of models generated, adjust by xtpan from 250 to 2
 
 MAX_EPOCHS = 2  # maximum number of epochs to train, adjust by xtpan from 10 to 2
@@ -31,20 +32,47 @@ RESTORE_CONTROLLER = True  # restore controller to continue training
 state_space = StateSpace()
 
 # add states
-# state_space.add_state(name='kernel', values=[1, 3])
-# state_space.add_state(name='filters', values=[16, 32, 64])
-state_space.add_state(name='forward lstm', values=[128])
-state_space.add_state(name='backward lstm', values=[128])
+state_space.add_state(name='embedding', values=[50, 100, 200])
+state_space.add_state(name='bidirection_lstm', values=[64, 128, 256])
+state_space.add_state(name='filters', values=[16, 32, 64])
+state_space.add_state(name='kernel', values=[1, 3])
 
 # print the state space being searched
 state_space.print_state_space()
 
+x_train = []
+y_train = []
+x_test = []
+y_test = []
+with open('nlp/feature.filter', 'r') as f:
+    for line in f:
+        elements = line.strip('\r\n').split('\t')
+        if random.uniform(0, 1) < 0.8:
+            x_train.append(elements[0].split(','))
+            y_train.append(elements[1])
+        else:
+            x_test.append(elements[0].split(','))
+            y_test.append(elements[1])
+    f.close()
+x_train = np.asarray(x_train, dtype=np.int32)
+y_train = np.asarray(y_train, dtype=np.int32)
+x_test = np.asarray(x_test, dtype=np.int32)
+y_test = np.asarray(y_test, dtype=np.int32)
+
+y_train = np.reshape(y_train, newshape=[y_train.shape[0], 1])
+y_train = to_categorical(y_train, num_classes=22)
+y_test = np.reshape(y_test, newshape=[y_test.shape[0], 1])
+y_test = to_categorical(y_test, num_classes=22)
+
+'''
 # prepare the training data for the NetworkManager
 (x_train, y_train), (x_test, y_test) = cifar10.load_data()
 x_train = x_train.astype('float32') / 255.
 x_test = x_test.astype('float32') / 255.
+print(y_train.shape)
 y_train = to_categorical(y_train, 10)
 y_test = to_categorical(y_test, 10)
+'''
 
 dataset = [x_train, y_train, x_test, y_test]  # pack the dataset for the NetworkManager
 
