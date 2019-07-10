@@ -20,14 +20,24 @@ def model_fn(actions):
     emb_1, bidirect_lstm_1, filter_1, kernel_1, emb_2, bidirect_lstm_2, filter_2, kernel_2 = actions
     model = Sequential()
     model.add(Embedding(3715, emb_1, input_length=12, name='emb'))
-    model.add(Bidirectional(LSTM(bidirect_lstm_1), name='bilstm'))
+    # model.add(LSTM(bidirect_lstm_1))
+
+    # sequential network
+    #model.add(Bidirectional(LSTM(bidirect_lstm_1), name='bilstm1'))
+
+    # convolutional network
+    '''
+    model.add(Reshape((12, -1, 1)))
+    model.add(Conv2D(filter_1, [kernel_1, kernel_1], strides=(1, 1), padding='same', activation='relu', name='conv'))
+    model.add(GlobalAveragePooling2D())
+    '''
+
+    # stack bilstm + convolutional network
+    model.add(Bidirectional(LSTM(bidirect_lstm_1, return_sequences=True), name='bilstm1'))
+    model.add(Bidirectional(LSTM(bidirect_lstm_2), name='bilstm2'))
     model.add(Reshape((-1, 1, 1)))
     model.add(Conv2D(filter_1, [kernel_1, kernel_1], strides=(1, 1), padding='same', activation='relu', name='conv'))
     model.add(GlobalAveragePooling2D())
-    #model.add(Bidirectional(LSTM(bidirect_lstm_2), name='bilstm2'))
-    #model.add(Reshape((-1, 1, 1)))
-    #model.add(Conv2D(filter_2, [kernel_2, kernel_2], strides=(1, 1), padding='same', activation='relu', name='conv2'))
-    #model.add(GlobalAveragePooling2D())
     model.add(Dense(22, activation='sigmoid', name='dense'))
     for layer in model.layers:
         print(layer.output_shape)
