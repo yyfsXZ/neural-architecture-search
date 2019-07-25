@@ -1,5 +1,7 @@
 import numpy as np
 import csv
+import os
+import json
 
 import random
 import tensorflow as tf
@@ -9,16 +11,18 @@ from keras.utils import to_categorical
 
 from controller import Controller, StateSpace
 from manager import NetworkManager
-from model import model_fn
+from model import model_fn_new as model_fn
+
+import data_helper as dh
 
 # create a shared session between Keras and Tensorflow
 policy_sess = tf.Session()
 K.set_session(policy_sess)
 
-NUM_LAYERS = 2  # number of layers of the state space
-MAX_TRIALS = 2  # maximum number of models generated, adjust by xtpan from 250 to 2
+NUM_LAYERS = 3  # number of layers of the state space
+MAX_TRIALS = 100  # maximum number of models generated, adjust by xtpan from 250 to 2
 
-MAX_EPOCHS = 2  # maximum number of epochs to train, adjust by xtpan from 10 to 2
+MAX_EPOCHS = 3  # maximum number of epochs to train, adjust by xtpan from 10 to 2
 CHILD_BATCHSIZE = 128  # batchsize of the child models
 EXPLORATION = 0.8  # high exploration for the first 1000 steps
 REGULARIZATION = 1e-3  # regularization strength
@@ -26,44 +30,83 @@ CONTROLLER_CELLS = 32  # number of cells in RNN controller
 EMBEDDING_DIM = 20  # dimension of the embeddings for each state
 ACCURACY_BETA = 0.8  # beta value for the moving average of the accuracy
 CLIP_REWARDS = 0.0  # clip rewards in the [-0.05, 0.05] range
-RESTORE_CONTROLLER = True  # restore controller to continue training
+RESTORE_CONTROLLER = False  # restore controller to continue training
+
+MAX_SEQ_LENGTH = 30
+
+MODEL_NAME = "textcnn"
+
+# init data_helper
+my_dh = dh.MyHelper(MAX_SEQ_LENGTH)
+my_dh.initialize()
+x_train, y_train, x_test, y_test = my_dh.read_input("../data/all_data.txt")
 
 # construct a state space
 state_space = StateSpace()
 
 # add states
-state_space.add_state(name='embedding', values=[50, 100, 200])
+state_space.add_state(name='embedding', values=[100, 200, 300])
 state_space.add_state(name='bidirection_lstm', values=[64, 128, 256])
-state_space.add_state(name='filters', values=[16, 32, 64])
-state_space.add_state(name='kernel', values=[1, 3])
+#state_space.add_state(name='filters', values=[32, 64, 128, 256])	# Mi
+state_space.add_state(name='filters', values=[16, 32, 64])	# Fawcar
+state_space.add_state(name='kernel_height', values=[2, 3, 4, 5])
+state_space.add_state(name='pool_weight', values=[2, 3, 4, 5])
+#state_space.add_state(name='fc_size', values=[256, 512, 1024, 2048])	# Mi
+state_space.add_state(name='fc_size', values=[256, 512])    # Fawcar
+state_space.add_state(name="vocab_size", values=[my_dh.get_vocab_size()])
+state_space.add_state(name="max_seq_length", values=[MAX_SEQ_LENGTH])
+state_space.add_state(name="label_num", values=[len(my_dh.label2id.keys())])
+# define model type; lstm / bilstm / lstm+bilstm / lenet
+state_space.add_state(name="model_type", values=[MODEL_NAME])   
 
 # print the state space being searched
 state_space.print_state_space()
 
-x_train = []
-y_train = []
-x_test = []
-y_test = []
-with open('nlp/feature.filter', 'r') as f:
-    for line in f:
-        elements = line.strip('\r\n').split('\t')
-        if random.uniform(0, 1) < 0.8:
-            x_train.append(elements[0].split(','))
-            y_train.append(elements[1])
-        else:
-            x_test.append(elements[0].split(','))
-            y_test.append(elements[1])
-    f.close()
+# laod train&test dataset
 x_train = np.asarray(x_train, dtype=np.int32)
 y_train = np.asarray(y_train, dtype=np.int32)
 x_test = np.asarray(x_test, dtype=np.int32)
 y_test = np.asarray(y_test, dtype=np.int32)
 
 y_train = np.reshape(y_train, newshape=[y_train.shape[0], 1])
-y_train = to_categorical(y_train, num_classes=22)
+y_train = to_categorical(y_train, num_classes=my_dh.get_label_size())
 y_test = np.reshape(y_test, newshape=[y_test.shape[0], 1])
-y_test = to_categorical(y_test, num_classes=22)
+y_test = to_categorical(y_test, num_classes=my_dh.get_label_size())
 
+print(x_train.shape)
+print(y_train.shape)
+print(x_test.shape)
+print(y_test.shape)
+
+# init saved_model path
+pb_dir = "./model_pb"
+os.system("rm -rf %s" % pb_dir)
+os.mkdir(pb_dir)
+
+# model name
+os.mkdir("%s/%s" % (pb_dir, MODEL_NAME))
+
+# save model.conf
+wp = open("%s/model.conf" % pb_dir, 'w', encoding="utf-8")
+model_conf = {"labels": "labels.dic", "epoch": 0, "max_sent_len": MAX_SEQ_LENGTH, "token_idx": "word.idx", "dnn_model": MODEL_NAME}
+wp.write(json.dumps(model_conf))
+wp.close()
+
+# save labels.dic
+sorted_labels = sorted(my_dh.label2id.items(), key=lambda x:x[1], reverse=False)
+wp = open("%s/labels.dic" % pb_dir, 'w', encoding="utf-8")
+for elem in sorted_labels:
+    wp.write("%s\n" % elem[0])
+wp.close()
+
+# save word.idx
+wp = open("%s/word.idx" % pb_dir, 'w', encoding="utf-8")
+for idx in range(my_dh.get_vocab_size()):
+    wp.write("%s\t%d\n" % (my_dh.get_char_by_id(idx), idx))
+wp.close()
+print("vocab size: %d" % my_dh.get_vocab_size())
+#import sys
+#sys.exit()
 '''
 # prepare the training data for the NetworkManager
 (x_train, y_train), (x_test, y_test) = cifar10.load_data()
@@ -90,7 +133,7 @@ with policy_sess.as_default():
 
 # create the Network Manager
 manager = NetworkManager(dataset, epochs=MAX_EPOCHS, child_batchsize=CHILD_BATCHSIZE, clip_rewards=CLIP_REWARDS,
-                         acc_beta=ACCURACY_BETA)
+                         acc_beta=ACCURACY_BETA, model_dir="%s/%s" % (pb_dir, MODEL_NAME))
 
 # get an initial random state space if controller needs to predict an
 # action from the initial state
